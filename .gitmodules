@@ -1,3 +1,6 @@
 [submodule "crystal"]
 	path = crystal
 	url = https://github.com/anilshanbhag/crystal.git
+[submodule "cub"]
+	path = cub
+	url = https://github.com/NVIDIA/cub.git
