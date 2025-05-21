@@ -64,13 +64,8 @@ bool process_table_file(
         {
             continue;
         }
-
-        // 필터 적용: val_a를 a_condition_ll과 비교하기 위해 long long으로 캐스팅
-        if (static_cast<long long int>(val_a) == a_condition_ll)
-        {
-            temp_data_map[val_a].b.push_back(val_b);
-            temp_data_map[val_a].c.push_back(val_c);
-        }
+        temp_data_map[val_a].b.push_back(val_b);
+        temp_data_map[val_a].c.push_back(val_c);
     }
 
     cout << "temp_data_map.size() : " << temp_data_map.size() << endl;
@@ -81,12 +76,22 @@ bool process_table_file(
     }
 
     filtered_table.clear();
-    for (const auto &pair : temp_data_map)
+    filtered_table.clear();
+    auto range = temp_data_map.equal_range(a_condition_ll);
+    for (auto it = range.first; it != range.second; ++it)
     {
-        TableColumnType col;
-        col.a = pair.first;       // 'a'는 맵의 키
-        col.values = pair.second; // 'values'(b와 c 벡터를 포함)는 맵의 값
-        filtered_table.push_back(col);
+        // b와 c 벡터의 길이가 같다고 가정
+        for (size_t i = 0; i < it->second.b.size(); ++i)
+        {
+            TableColumnType col;
+            col.a = a_condition_ll;
+            col.b = it->second.b[i];
+            col.c = it->second.c[i];
+            filtered_table.push_back(col);
+
+            // 출력
+            cout << "(" << col.a << ", " << col.b << ", " << col.c << ")" << endl;
+        }
     }
     filtered_table_size = filtered_table.size();
     return true;

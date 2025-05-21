@@ -17,13 +17,15 @@ struct TableBValues
 struct TableAColumn
 {
     int32_t a;
-    TableAValues values;
+    int32_t b;
+    int32_t c;
 };
 
 struct TableBColumn
 {
     int32_t a;
-    TableBValues values;
+    int32_t b;
+    int32_t c;
 };
 
 #endif
