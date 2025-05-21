@@ -1,0 +1,3 @@
+[submodule "crystal"]
+	path = crystal
+	url = https://github.com/anilshanbhag/crystal.git
