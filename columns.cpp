@@ -8,11 +8,11 @@
 #include <map>
 #include <iostream>
 
-using namespace std;
+using namespace std; // cpp 파일에서는 사용 편의를 위해 유지 (전역보다는 함수 스코프가 더 좋음)
 
-// 단일 테이블 파일을 처리하고 필터링된 데이터를 채우는 헬퍼 함수
+// 헬퍼 함수: 맵 기반 필터링 (기존 방식)
 template <typename TableColumnType, typename TableValuesType>
-bool process_table_file(
+bool process_table_file_map_internal( // 이름 변경하여 내부 사용 명시
     std::ifstream &table_stream,
     long long int a_condition_ll,
     std::vector<TableColumnType> &filtered_table,
@@ -35,69 +35,104 @@ bool process_table_file(
         std::stringstream ss(line);
         char delimiter_char = 0;
 
-        // 'a' 파싱
         if (!(ss >> val_a))
-        {
             continue;
-        }
-
-        // 'a' 뒤의 구분자(콤마 또는 공백) 확인
         if (ss.peek() == ',' || ss.peek() == ' ')
-        {
             ss.get(delimiter_char);
-        }
-
-        // 'b' 파싱
         if (!(ss >> val_b))
-        {
             continue;
-        }
-
-        // 'b' 뒤의 구분자(콤마 또는 공백) 확인
         if (ss.peek() == ',' || ss.peek() == ' ')
-        {
             ss.get(delimiter_char);
-        }
-
-        // 'c' 파싱
         if (!(ss >> val_c))
-        {
             continue;
-        }
+
         temp_data_map[val_a].b.push_back(val_b);
         temp_data_map[val_a].c.push_back(val_c);
     }
 
-    cout << "temp_data_map.size() : " << temp_data_map.size() << endl;
+    // cout << "Map-based: temp_data_map.size() for condition " << a_condition_ll << ": " << temp_data_map.size() << endl;
 
     if (table_stream.bad())
     {
+        std::cerr << "Error reading from table stream." << std::endl;
         return false;
     }
 
     filtered_table.clear();
-    filtered_table.clear();
-    auto range = temp_data_map.equal_range(a_condition_ll);
-    for (auto it = range.first; it != range.second; ++it)
+    auto it_find = temp_data_map.find(static_cast<int32_t>(a_condition_ll)); // 조건 타입을 int32_t로 캐스팅
+    if (it_find != temp_data_map.end())
     {
-        // b와 c 벡터의 길이가 같다고 가정
-        for (size_t i = 0; i < it->second.b.size(); ++i)
+        for (size_t i = 0; i < it_find->second.b.size(); ++i)
         {
             TableColumnType col;
-            col.a = a_condition_ll;
-            col.b = it->second.b[i];
-            col.c = it->second.c[i];
+            col.a = static_cast<int32_t>(a_condition_ll);
+            col.b = it_find->second.b[i];
+            col.c = it_find->second.c[i];
             filtered_table.push_back(col);
-
-            // 출력
-            cout << "(" << col.a << ", " << col.b << ", " << col.c << ")" << endl;
+            // cout << "Map-based Filtered: (" << col.a << ", " << col.b << ", " << col.c << ")" << endl;
         }
     }
     filtered_table_size = filtered_table.size();
     return true;
 }
 
-bool get_filtered_table(
+// 헬퍼 함수: 직접 필터링 (새로운 방식)
+template <typename TableColumnType>
+bool process_table_file_direct_internal( // 이름 변경하여 내부 사용 명시
+    std::ifstream &table_stream,
+    long long int a_condition_ll,
+    std::vector<TableColumnType> &filtered_table,
+    size_t &filtered_table_size)
+{
+    std::string line;
+    int32_t val_a, val_b, val_c;
+
+    table_stream.clear();
+    table_stream.seekg(0, std::ios::beg);
+
+    filtered_table.clear();
+
+    while (std::getline(table_stream, line))
+    {
+        if (line.empty() || line[0] == '#')
+        {
+            continue;
+        }
+
+        std::stringstream ss(line);
+        char delimiter_char = 0;
+
+        if (!(ss >> val_a))
+            continue;
+        if (ss.peek() == ',' || ss.peek() == ' ')
+            ss.get(delimiter_char);
+        if (!(ss >> val_b))
+            continue;
+        if (ss.peek() == ',' || ss.peek() == ' ')
+            ss.get(delimiter_char);
+        if (!(ss >> val_c))
+            continue;
+
+        if (val_a == a_condition_ll) // 직접 조건 비교
+        {
+            TableColumnType col;
+            col.a = val_a; // 또는 static_cast<int32_t>(a_condition_ll)
+            col.b = val_b;
+            col.c = val_c;
+            filtered_table.push_back(col);
+            // cout << "Direct Filtered: (" << col.a << ", " << col.b << ", " << col.c << ")" << endl;
+        }
+    }
+    if (table_stream.bad())
+    {
+        std::cerr << "Error reading from table stream." << std::endl;
+        return false;
+    }
+    filtered_table_size = filtered_table.size();
+    return true;
+}
+
+bool get_filtered_table_map_based(
     std::ifstream &table_a_stream,
     std::ifstream &table_b_stream,
     long long int A_a_condition,
@@ -107,17 +142,48 @@ bool get_filtered_table(
     size_t &filtered_table_a_size,
     size_t &filtered_table_b_size)
 {
-    // 테이블 A 처리
-    if (!process_table_file<TableAColumn, TableAValues>(
+    // 테이블 A 처리 (맵 기반)
+    if (!process_table_file_map_internal<TableAColumn, TableAValues>(
             table_a_stream, A_a_condition, filtered_table_a, filtered_table_a_size))
     {
+        cerr << "Error processing table A (map-based)." << endl;
         return false;
     }
 
-    // 테이블 B 처리
-    if (!process_table_file<TableBColumn, TableBValues>(
+    // 테이블 B 처리 (맵 기반)
+    if (!process_table_file_map_internal<TableBColumn, TableBValues>(
             table_b_stream, B_a_condition, filtered_table_b, filtered_table_b_size))
     {
+        cerr << "Error processing table B (map-based)." << endl;
+        return false;
+    }
+
+    return true;
+}
+
+bool get_filtered_table_direct_filter(
+    std::ifstream &table_a_stream,
+    std::ifstream &table_b_stream,
+    long long int A_a_condition,
+    long long int B_a_condition,
+    std::vector<TableAColumn> &filtered_table_a,
+    std::vector<TableBColumn> &filtered_table_b,
+    size_t &filtered_table_a_size,
+    size_t &filtered_table_b_size)
+{
+    // 테이블 A 처리 (직접 필터링)
+    if (!process_table_file_direct_internal<TableAColumn>(
+            table_a_stream, A_a_condition, filtered_table_a, filtered_table_a_size))
+    {
+        cerr << "Error processing table A (direct filter)." << endl;
+        return false;
+    }
+
+    // 테이블 B 처리 (직접 필터링)
+    if (!process_table_file_direct_internal<TableBColumn>(
+            table_b_stream, B_a_condition, filtered_table_b, filtered_table_b_size))
+    {
+        cerr << "Error processing table B (direct filter)." << endl;
         return false;
     }
 
